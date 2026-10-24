@@ -8,8 +8,8 @@
 
 图片 / 文档 / 音视频 / 文本 / 开发者工具，一个应用全搞定
 
-[![CI](https://github.com/OWNER/omnikit/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/omnikit/actions/workflows/ci.yml)
-[![Release](https://github.com/OWNER/omnikit/actions/workflows/release.yml/badge.svg)](https://github.com/OWNER/omnikit/actions/workflows/release.yml)
+[![CI](https://github.com/adminWuxq/omnikit/actions/workflows/ci.yml/badge.svg)](https://github.com/adminWuxq/omnikit/actions/workflows/ci.yml)
+[![Release](https://github.com/adminWuxq/omnikit/actions/workflows/release.yml/badge.svg)](https://github.com/adminWuxq/omnikit/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-8b5cf6.svg)](LICENSE)
 [![Tauri](https://img.shields.io/badge/Tauri-2.0-24c8d8.svg)](https://tauri.app)
 [![React](https://img.shields.io/badge/React-18-61dafb.svg)](https://react.dev)
@@ -88,7 +88,7 @@ OmniKit 是基于 **Tauri 2 + React 18 + TypeScript** 构建的桌面端效率�
 
 ### 开发调试
 ```bash
-git clone https://github.com/OWNER/omnikit.git
+git clone https://github.com/adminWuxq/omnikit.git
 cd omnikit
 npm install
 
