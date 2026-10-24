@@ -3,6 +3,7 @@
  * 核心文件已内置在 public/ffmpeg/，首次加载后完全离线运行。
  */
 import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { toBlobURL } from '@ffmpeg/util';
 // eslint-disable-next-line
 import workerUrl from '@ffmpeg/ffmpeg/worker?url';
 
@@ -32,11 +33,21 @@ async function create(): Promise<FFmpeg> {
   f.on('progress', ({ progress }) => {
     if (progressCb && Number.isFinite(progress)) progressCb(Math.min(1, Math.max(0, progress)));
   });
-  await f.load({
-    coreURL: '/ffmpeg/ffmpeg-core.js',
-    wasmURL: '/ffmpeg/ffmpeg-core.wasm',
-    classWorkerURL: workerUrl,
-  });
+  // 内核文件经 toBlobURL 加载：
+  // 1) 绕开 Vite 开发服务器对 public JS 的导入限制；
+  // 2) ffmpeg 的 class worker 是 module 类型，必须用带 default 导出的 ESM 版内核；
+  // 3) 文件仍是本地 public 资源，离线可用。wasm 与 UMD 版完全相同（已校验哈希）。
+  const [coreURL, wasmURL] = await Promise.all([
+    toBlobURL('/ffmpeg/ffmpeg-core.esm.js', 'text/javascript'),
+    toBlobURL('/ffmpeg/ffmpeg-core.wasm', 'application/wasm'),
+  ]);
+  try {
+    await f.load({ coreURL, wasmURL, classWorkerURL: workerUrl });
+  } catch (e) {
+    // worker 内部错误会以字符串形式拒绝，统一转成 Error 方便展示
+    loadPromise = null;
+    throw new Error(typeof e === 'string' ? e : (e as Error).message || String(e));
+  }
   return f;
 }
 
