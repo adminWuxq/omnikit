@@ -23,6 +23,7 @@ const { randomPhone, randomUuid, randomId, cnName, generateMockJson } = await im
 const { hexToRgb, rgbToHex, rgbToHsl, hslToRgb, hexToHsl, shadesOf, readableText } = await import('/src/lib/color.ts');
 const { parseTimestamp, fmtLocal, relTime } = await import('/src/lib/time.ts');
 const { transformImage, imageSize } = await import('/src/lib/image.ts');
+const { upscaleHD } = await import('/src/lib/hd.ts');
 const { inpaint } = await import('/src/lib/inpaint.ts');
 const { convertAudio } = await import('/src/lib/media.ts');
 
@@ -132,6 +133,27 @@ const jd = await createImageBitmap(jpg.blob);
 const jc = mkCanvas(jd.width, jd.height, (ctx) => ctx.drawImage(jd, 0, 0));
 const px = jc.getContext('2d').getImageData(0, 0, 1, 1).data;
 t('image: 透明→JPG白底', px[0] > 240 && px[1] > 240 && px[2] > 240 && jpg.name.endsWith('.jpg'), `rgb(${px[0]},${px[1]},${px[2]})`);
+
+// 图片转高清
+const smallC = mkCanvas(80, 60, (ctx) => {
+  const g = ctx.createLinearGradient(0, 0, 80, 60);
+  g.addColorStop(0, '#ef4444'); g.addColorStop(1, '#3b82f6');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 80, 60);
+  ctx.fillStyle = '#fff'; ctx.fillRect(36, 26, 8, 8);
+});
+const smallFile = new File([await canvasBlob(smallC)], 'small.png', { type: 'image/png' });
+const hd = await upscaleHD(smallFile, { factor: 2, sharpen: 40 });
+t('hd: 2x 尺寸', hd.w === 160 && hd.h === 120 && hd.name.endsWith('-hd.png'), `${hd.w}x${hd.h} ${hd.name}`);
+const hdNoSharpen = await upscaleHD(smallFile, { factor: 2, sharpen: 0 });
+const hdBytes = new Uint8Array(await hd.blob.arrayBuffer());
+const hd0Bytes = new Uint8Array(await hdNoSharpen.blob.arrayBuffer());
+let bytesDiff = 0;
+for (let i = 0; i < Math.min(hdBytes.length, hd0Bytes.length); i += 97) if (hdBytes[i] !== hd0Bytes[i]) bytesDiff++;
+t('hd: 锐化生效(与关闭锐化输出不同)', bytesDiff > 10, 'diff=' + bytesDiff);
+const hdCapped = await upscaleHD(smallFile, { factor: 4, sharpen: 0, maxSide: 120 });
+t('hd: 最长边上限生效', hdCapped.w === 120 && hdCapped.h === 90, `${hdCapped.w}x${hdCapped.h}`);
+const hdJpg = await upscaleHD(smallFile, { factor: 2, sharpen: 30, fmt: 'jpeg' });
+t('hd: JPG 输出', hdJpg.blob.type === 'image/jpeg' && hdJpg.name.endsWith('-hd.jpg'));
 
 // inpaint 去水印：白色块应被背景渐变填充
 const src = imgC.getContext('2d').getImageData(0, 0, 160, 120);

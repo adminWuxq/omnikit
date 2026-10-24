@@ -2,11 +2,12 @@ import type { ComponentType } from 'react';
 import type { IconType } from './components/ui';
 import {
   AudioLines, Binary, Braces, Clock, Dices, Eraser, FileText, Film,
-  Image as ImageIcon, KeyRound, Palette, Regex, Scaling, Stamp, Type, Sparkles,
+  Image as ImageIcon, KeyRound, Palette, Regex, Scaling, Stamp, Type, Sparkles, ZoomIn,
 } from 'lucide-react';
 
 import ImageConvert from './components/tools/ImageConvert';
 import ImageResize from './components/tools/ImageResize';
+import ImageHD from './components/tools/ImageHD';
 import Watermark from './components/tools/Watermark';
 import WatermarkRemover from './components/tools/WatermarkRemover';
 import DocConvert from './components/tools/DocConvert';
@@ -46,6 +47,7 @@ export const TOOLS: ToolMeta[] = [
   // 图片
   { id: 'image-convert', name: '格式转换 / 压缩', desc: 'WebP ↔ PNG ↔ JPG 互转、质量压缩、批量最长边限制', icon: ImageIcon, cat: 'image', component: ImageConvert, tags: ['webp', 'png', 'jpg', '压缩', 'convert'] },
   { id: 'image-resize', name: '批量改尺寸', desc: '按比例 / 指定宽高 / 最长边三种模式批量缩放', icon: Scaling, cat: 'image', component: ImageResize, tags: ['resize', '缩放', '尺寸'] },
+  { id: 'image-hd', name: '图片转高清', desc: '渐进插值放大 2~4 倍 + Unsharp Mask 锐化，适合截图 / 插画 / 文档', icon: ZoomIn, cat: 'image', component: ImageHD, tags: ['高清', '放大', 'upscale', '锐化'] },
   { id: 'watermark', name: '图片加水印', desc: '文字 / 图片水印，平铺防盗图，实时预览，批量导出', icon: Stamp, cat: 'image', component: Watermark, tags: ['水印', 'watermark'] },
   { id: 'watermark-remove', name: '去水印 / 修复', desc: '涂抹水印区域，多尺度扩散算法自动修复背景', icon: Eraser, cat: 'image', component: WatermarkRemover, tags: ['去水印', '修复', 'inpaint'] },
 
