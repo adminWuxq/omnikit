@@ -1,28 +1,17 @@
 import { useMemo, useState } from 'react';
 import { ArrowUpDown, Binary, Lock, Unlock } from 'lucide-react';
 import { Card, CopyBtn, Seg, TextArea, Toggle, toast } from '../ui';
+import { b64Decode, b64Encode, hexDecode, hexEncode, unicodeDecode, unicodeEncode, urlDecode, urlEncode } from '../../lib/encoding';
 
 type Kind = 'url' | 'base64' | 'unicode' | 'hex';
 
 const SAMPLE = '你好，World！https://example.com/?q=测试';
 
 const FNS: Record<Kind, { enc: (s: string, whole: boolean) => string; dec: (s: string) => string }> = {
-  url: {
-    enc: (s, whole) => (whole ? encodeURI(s) : encodeURIComponent(s)),
-    dec: (s) => decodeURIComponent(s),
-  },
-  base64: {
-    enc: (s) => { const b = new TextEncoder().encode(s); let bin = ''; for (const x of b) bin += String.fromCharCode(x); return btoa(bin); },
-    dec: (s) => { const bin = atob(s.replace(/\s+/g, '')); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new TextDecoder().decode(u); },
-  },
-  unicode: {
-    enc: (s) => Array.from(s, (ch) => '\\u' + ch.charCodeAt(0).toString(16).padStart(4, '0')).join(''),
-    dec: (s) => s.replace(/\\u([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16))),
-  },
-  hex: {
-    enc: (s) => Array.from(new TextEncoder().encode(s), (b) => b.toString(16).padStart(2, '0')).join(' '),
-    dec: (s) => { const clean = s.replace(/[^0-9a-fA-F]/g, ''); if (clean.length % 2) throw new Error('长度需为偶数'); const u = new Uint8Array(clean.length / 2); for (let i = 0; i < u.length; i++) u[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16); return new TextDecoder().decode(u); },
-  },
+  url: { enc: (s, whole) => urlEncode(s, !whole), dec: urlDecode },
+  base64: { enc: (s) => b64Encode(s), dec: (s) => b64Decode(s) },
+  unicode: { enc: (s) => unicodeEncode(s), dec: (s) => unicodeDecode(s) },
+  hex: { enc: (s) => hexEncode(s).replace(/(..)/g, '$1 ').trim(), dec: (s) => hexDecode(s) },
 };
 
 export default function EncodingTool() {

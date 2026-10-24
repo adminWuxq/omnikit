@@ -40,7 +40,8 @@ export function processText(input: string, ops: TextOps): TextResult {
   if (ops.caseMode === 'capitalize') {
     lines = lines.map((l) => {
       const m = l.match(/^([\s]*)(\S)(.*)$/);
-      return m ? m[1] + m[2].toUpperCase() + m[3].toLowerCase() : l;
+      // 只大写首字母，保留其余字符原有大小写
+      return m ? m[1] + m[2].toUpperCase() + m[3] : l;
     });
   }
   const output = lines.join('\n');

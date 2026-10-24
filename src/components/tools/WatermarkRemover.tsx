@@ -181,7 +181,7 @@ export default function WatermarkRemover() {
         <Card>
           {file ? (
             <>
-              <div className="canvas-box"><canvas ref={canvasRef} style={{ width: '100%', touchAction: 'none' }} /></div>
+              <div className="canvas-box"><canvas ref={canvasRef} style={{ width: '100%', touchAction: 'none' }} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} /></div>
               <div className="flex gap-2 mt-3 flex-wrap">
                 <Btn variant="primary" icon={Wand2} loading={busy} disabled={!hasMask} onClick={run}>开始修复</Btn>
                 <Btn icon={Trash2} onClick={() => { maskRef.current?.getContext('2d')!.clearRect(0, 0, maskRef.current!.width, maskRef.current!.height); setHasMask(false); drawView(); }}>清除涂抹</Btn>

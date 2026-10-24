@@ -1,0 +1,183 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>SELFTEST</title>
+<style>body{background:#0b0f1a;color:#9fe8c9;font:13px/1.6 Consolas,monospace;padding:20px}pre{white-space:pre-wrap}</style>
+</head><body><pre id="out">running…</pre>
+<script type="module">
+const O = document.getElementById('out');
+let pass = 0, fail = 0; const fails = [];
+let lastDiff = '';
+const t = (name, cond, extra = '') => {
+  if (cond) { pass++; O.textContent += `✔ ${name}\n`; }
+  else { fail++; fails.push(name + ' ' + (extra || lastDiff)); O.textContent += `✘ ${name} ${extra || lastDiff}\n`; }
+  lastDiff = '';
+};
+const deepEq = (a, b) => JSON.stringify(a) === JSON.stringify(b) ? true : (lastDiff = `got=${JSON.stringify(a)} want=${JSON.stringify(b)}`, false);
+const eq = (a, b) => { if (a === b) return true; lastDiff = `got=${JSON.stringify(a)} want=${JSON.stringify(b)}`; return false; };
+
+// ---------- 纯逻辑库 ----------
+const { processText } = await import('/src/lib/text.ts');
+const { formatJson, jsonToCsv, csvToJson, parseCsv } = await import('/src/lib/jsonlib.ts');
+const { urlEncode, urlDecode, b64Encode, b64Decode, unicodeEncode, unicodeDecode, hexEncode, hexDecode } = await import('/src/lib/encoding.ts');
+const { md5Hex, shaHex, hmacHex } = await import('/src/lib/crypto.ts');
+const { randomPhone, randomUuid, randomId, cnName, generateMockJson } = await import('/src/lib/random.ts');
+const { hexToRgb, rgbToHex, rgbToHsl, hslToRgb, hexToHsl, shadesOf, readableText } = await import('/src/lib/color.ts');
+const { parseTimestamp, fmtLocal, relTime } = await import('/src/lib/time.ts');
+const { transformImage, imageSize } = await import('/src/lib/image.ts');
+const { inpaint } = await import('/src/lib/inpaint.ts');
+const { convertAudio } = await import('/src/lib/media.ts');
+
+// 文本
+let r = processText('a\na\n b \n\nc', { trim: true, removeEmpty: true, dedupe: true, sort: 'none', caseMode: 'none' });
+t('text: 清洗(去空行/去重/trim)', eq(r.output, 'a\nb\nc'));
+r = processText('banana\napple\nCherry', { trim: false, removeEmpty: false, dedupe: false, sort: 'asc', caseMode: 'none' });
+t('text: 排序升序', eq(r.output, 'apple\nbanana\nCherry'), r.output);
+r = processText('A\nB', { trim: false, removeEmpty: false, dedupe: false, sort: 'none', caseMode: 'upper' });
+t('text: 大写转换', eq(r.output, 'A\nB'));
+r = processText('hello world', { trim: false, removeEmpty: false, dedupe: false, sort: 'none', caseMode: 'capitalize' });
+t('text: 首字母大写', eq(r.output, 'Hello world'), r.output);
+
+// JSON / CSV
+t('json: 格式化2空格', eq(formatJson('{"a":1}', '2'), '{\n  "a": 1\n}'));
+t('json: 压缩', eq(formatJson('{ "a" : [1, 2] }', 'min'), '{"a":[1,2]}'));
+let csv = jsonToCsv('[{"a":1,"b":"x,y"},{"a":2,"b":"he said \\"hi\\""}]');
+t('json→csv: 引号转义', eq(csv, 'a,b\n1,"x,y"\n2,"he said ""hi"""'), csv);
+t('csv→json: 类型推断', eq(csvToJson('a,b\n1,true\n2,ok'), '[\n  {\n    "a": 1,\n    "b": true\n  },\n  {\n    "a": 2,\n    "b": "ok"\n  }\n]'));
+const deep = jsonToCsv('[{"u":{"name":"n1"},"tags":[1,2]}]');
+t('json→csv: 嵌套展开', deep.includes('u.name') && deep.includes('tags') && deep.includes('[1,2]'), deep);
+let threw = false; try { formatJson('{bad', '2'); } catch { threw = true; }
+t('json: 非法输入报错', threw);
+
+// 编码
+t('base64: 中文', eq(b64Encode('你好'), '5L2g5aW9'));
+t('base64: 解码回环', eq(b64Decode(b64Encode('你好，世界！')), '你好，世界！'));
+t('url: 编码', eq(urlEncode('a b中'), 'a%20b%E4%B8%AD'));
+t('url: 解码', eq(urlDecode('a%20b%E4%B8%AD'), 'a b中'));
+t('unicode: 编码(仅非ASCII)', eq(unicodeEncode('中A'), '\\u4e2dA'));
+t('unicode: 解码', eq(unicodeDecode('\\u4e2dA'), '中A'));
+t('hex: 编码', eq(hexEncode('A'), '41'));
+t('hex: 解码', eq(hexDecode('e4 bd a0'), '你'));
+threw = false; try { b64Decode('!!!非法!!!'); } catch { threw = true; }
+t('base64: 非法输入报错', threw);
+
+// 加密（标准已知答案向量）
+t('md5: KAT(abc)', eq(md5Hex('abc'), '900150983cd24fb0d6963f7d28e17f72'));
+t('sha1: KAT(abc)', eq(await shaHex('SHA-1', 'abc'), 'a9993e364706816aba3e25717850c26c9cd0d89d'));
+t('sha256: KAT(abc)', eq(await shaHex('SHA-256', 'abc'), 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'));
+t('hmac-sha256: RFC向量', eq(await hmacHex('SHA-256', 'key', 'The quick brown fox jumps over the lazy dog'), 'f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8'));
+
+// 随机数据
+t('random: 手机号格式', /^1[3-9]\d{9}$/.test(randomPhone()));
+t('random: UUID v4 格式', /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(randomUuid()));
+t('random: 自定义ID长度/字符集', /^[a-z0-9]{12}$/.test(randomId(12, true, false, true)));
+const cnOk = /^[\u4e00-\u9fa5]{1,3}$/.test(cnName());
+t('random: 中文姓名', cnOk);
+const mock = JSON.parse(generateMockJson([
+  { key: 'id', type: 'increment', min: 0, max: 0, len: 0, options: '' },
+  { key: 'name', type: 'name', min: 0, max: 0, len: 0, options: '' },
+  { key: 'phone', type: 'phone', min: 0, max: 0, len: 0, options: '' },
+  { key: 'score', type: 'int', min: 0, max: 100, len: 0, options: '' },
+  { key: 'vip', type: 'pick', min: 0, max: 0, len: 0, options: '是,否' },
+], 5));
+t('random: MockJSON 结构', mock.length === 5 && mock[0].id === 1 && /^[1][3-9]\d{9}$/.test(mock[2].phone) && ['是','否'].includes(mock[0].vip) && typeof mock[0].score === 'number');
+
+// 颜色
+const rgb = hexToRgb('#8b5cf6');
+t('color: hex→rgb', deepEq([rgb.r, rgb.g, rgb.b], [139, 92, 246]));
+const hsl = rgbToHsl(rgb);
+t('color: rgb→hsl', deepEq([hsl.h, hsl.s, hsl.l], [258, 90, 66]), JSON.stringify(hsl));
+const rgbBack = hslToRgb(hsl);
+t('color: hsl→rgb 回环(±2量化误差)', Math.abs(rgbBack.r - 139) <= 2 && Math.abs(rgbBack.g - 92) <= 2 && Math.abs(rgbBack.b - 246) <= 2, rgbToHex(rgbBack));
+t('color: 3位hex', eq(rgbToHex(hexToRgb('#fff')), '#ffffff'));
+t('color: 明暗梯度11档', shadesOf('#8b5cf6').length === 11);
+t('color: 可读文字色(深底白字)', eq(readableText({ r: 20, g: 20, b: 40 }), '#ffffff'));
+t('color: 非法hex返回null', hexToRgb('#xyz') === null);
+
+// 时间戳
+const d = parseTimestamp('1700000000');
+t('time: 秒级解析', d && fmtLocal(d) === fmtLocal(new Date(1700000000000)));
+t('time: 毫秒级解析', parseTimestamp('1700000000000').getTime() === 1700000000000);
+t('time: 后缀写法', parseTimestamp('1700000000ms').getTime() === 1700000000 && parseTimestamp('1700000000s').getTime() === 1700000000000);
+t('time: 日期字符串', parseTimestamp('2024-01-01 00:00:00') !== null);
+t('time: 非法输入', parseTimestamp('abc123') === null);
+t('time: 相对时间', relTime(new Date(Date.now() - 65000)) === '1 分钟前');
+
+// ---------- 图像管线（Canvas） ----------
+const mkCanvas = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d')); return c; };
+const canvasBlob = (c, type = 'image/png') => new Promise(res => c.toBlob(res, type, 0.9));
+
+// 渐变彩条 + 中心白块（模拟水印区域）
+const imgC = mkCanvas(160, 120, (ctx) => {
+  const g = ctx.createLinearGradient(0, 0, 160, 0);
+  g.addColorStop(0, '#3b82f6'); g.addColorStop(1, '#f59e0b');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 160, 120);
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(60, 40, 40, 40); // “水印”
+});
+const imgFile = new File([await canvasBlob(imgC)], 'test.png', { type: 'image/png' });
+const sz = await imageSize(imgFile);
+t('image: 解码尺寸', sz.w === 160 && sz.h === 120);
+
+const webp = await transformImage(imgFile, { fmt: 'webp', quality: 0.8 });
+t('image: png→webp', webp.blob.type === 'image/webp' && webp.name.endsWith('.webp'));
+t('image: webp 压缩有效', webp.blob.size < imgFile.size * 0.95, `${webp.blob.size} vs ${imgFile.size}`);
+const half = await transformImage(imgFile, { fmt: 'png', size: (w, h) => ({ w: w / 2, h: h / 2 }) });
+t('image: 50%缩放', half.w === 80 && half.h === 60);
+const up = await transformImage(imgFile, { fmt: 'png', size: (w, h) => ({ w: w * 2, h: h * 2 }) });
+t('image: 2x放大', up.w === 320 && up.h === 240);
+
+// 透明 PNG → JPG 应铺白底
+const transC = mkCanvas(50, 50, (ctx) => { ctx.clearRect(0, 0, 50, 50); ctx.fillStyle = '#ef4444'; ctx.fillRect(10, 10, 30, 30); });
+const transFile = new File([await canvasBlob(transC)], 't.png', { type: 'image/png' });
+const jpg = await transformImage(transFile, { fmt: 'jpeg', quality: 0.9 });
+const jd = await createImageBitmap(jpg.blob);
+const jc = mkCanvas(jd.width, jd.height, (ctx) => ctx.drawImage(jd, 0, 0));
+const px = jc.getContext('2d').getImageData(0, 0, 1, 1).data;
+t('image: 透明→JPG白底', px[0] > 240 && px[1] > 240 && px[2] > 240 && jpg.name.endsWith('.jpg'), `rgb(${px[0]},${px[1]},${px[2]})`);
+
+// inpaint 去水印：白色块应被背景渐变填充
+const src = imgC.getContext('2d').getImageData(0, 0, 160, 120);
+const mask = new Uint8Array(160 * 120);
+for (let y = 40; y < 80; y++) for (let x = 60; x < 100; x++) mask[y * 160 + x] = 1;
+const t0 = performance.now();
+const fixed = inpaint(src, mask);
+const ms = performance.now() - t0;
+const at = (img, x, y) => [img.data[(y * 160 + x) * 4], img.data[(y * 160 + x) * 4 + 1], img.data[(y * 160 + x) * 4 + 2]];
+const center = at(fixed, 80, 60);
+// x=80 处渐变期望 ≈ 蓝(59,130,246)→橙(245,158,11) 的 50% 附近
+t('inpaint: 中心已填充(非白)', center[0] > 100 && center[1] > 80, `rgb(${center}) 用时${ms.toFixed(0)}ms`);
+const corner = at(fixed, 5, 5), origCorner = at(src, 5, 5);
+t('inpaint: 蒙版外像素不变', corner.every((v, i) => Math.abs(v - origCorner[i]) <= 1), `rgb(${corner}) vs rgb(${origCorner})`);
+// 修复区域与真实渐变的偏差
+let devSum = 0, n = 0;
+for (let y = 44; y < 76; y += 4) for (let x = 64; x < 96; x += 4) {
+  const f = x / 160;
+  const exp = [59 + (245 - 59) * f, 130 + (158 - 130) * f, 246 + (11 - 246) * f];
+  const got = at(fixed, x, y);
+  devSum += (Math.abs(got[0] - exp[0]) + Math.abs(got[1] - exp[1]) + Math.abs(got[2] - exp[2])) / 3; n++;
+}
+const dev = devSum / n;
+t('inpaint: 填充接近真实背景', dev < 30, `平均偏差 ${dev.toFixed(1)}`);
+t('inpaint: 性能(<3s)', ms < 3000, `${ms.toFixed(0)}ms`);
+
+// ---------- 音频转换（ffmpeg 全管线） ----------
+const sr = 22050, ns = sr; // 1 秒
+const ab = new ArrayBuffer(44 + ns * 2), dv = new DataView(ab);
+const ws = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
+ws(0, 'RIFF'); dv.setUint32(4, 36 + ns * 2, true); ws(8, 'WAVE'); ws(12, 'fmt ');
+dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+dv.setUint32(24, sr, true); dv.setUint32(28, sr * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
+ws(36, 'data'); dv.setUint32(40, ns * 2, true);
+for (let i = 0; i < ns; i++) dv.setInt16(44 + i * 2, (Math.sin(2 * Math.PI * 440 * i / sr) * 10000) | 0, true);
+const wavFile = new File([ab], 'sine.wav', { type: 'audio/wav' });
+O.textContent += `\n— ffmpeg 转换（首次加载引擎约数秒）—\n`;
+for (const tgt of ['mp3', 'wav', 'flac', 'ogg', 'm4a']) {
+  try {
+    const out = await convertAudio(wavFile, tgt);
+    const okType = { mp3: 'audio/mpeg', wav: 'audio/wav', flac: 'audio/flac', ogg: 'audio/ogg', m4a: 'audio/mp4' }[tgt];
+    t(`audio: WAV→${tgt.toUpperCase()}`, out.blob.type === okType && out.blob.size > 3000, `${out.blob.size}B ${out.blob.type}`);
+  } catch (e) { t(`audio: WAV→${tgt.toUpperCase()}`, false, String(e.message || e)); }
+}
+
+O.textContent += `\n======== 结果: ${pass} 通过 / ${fail} 失败 ========\n`;
+if (fails.length) O.textContent += '失败项:\n' + fails.map(f => '  ✘ ' + f).join('\n') + '\n';
+document.title = fail === 0 ? `ALL_PASS(${pass})` : `HAS_FAIL(${fail})`;
+</script></body></html>

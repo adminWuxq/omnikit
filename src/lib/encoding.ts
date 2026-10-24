@@ -34,11 +34,16 @@ export function b64Decode(s: string): string {
   }
 }
 
+/** 仅转义非 ASCII 字符，保持英文可读性 */
 export function unicodeEncode(s: string): string {
   let out = '';
   for (const ch of s) {
-    for (const unit of ch) {
-      out += '\\u' + unit.charCodeAt(0).toString(16).padStart(4, '0');
+    const cp = ch.codePointAt(0)!;
+    if (cp > 0x7f) {
+      // 代理对字符（如 emoji）需按 UTF-16 单元逐个转义
+      for (const unit of ch) out += '\\u' + unit.charCodeAt(0).toString(16).padStart(4, '0');
+    } else {
+      out += ch;
     }
   }
   return out;
